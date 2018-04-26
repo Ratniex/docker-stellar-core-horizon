@@ -2,6 +2,7 @@
 set -e
 
 export STELLAR_HOME="/opt/stellar"
+export ZABBIXHOME="$STELLAR_HOME/zabbix"
 export PGHOME="$STELLAR_HOME/postgresql"
 export SUPHOME="$STELLAR_HOME/supervisor"
 export COREHOME="$STELLAR_HOME/core"
@@ -26,6 +27,7 @@ function main() {
 	echo "network: $NETWORK ($NETWORK_PASSPHRASE)"
 
 	copy_defaults
+	init_zabbix_agent
 	init_db
 	init_stellar_core
 	init_horizon
@@ -38,42 +40,98 @@ function main() {
 }
 
 function process_args() {
-	while [[ -n "$1" ]]; do
-  	ARG="$1"
-	  shift
+	# getopt --test > /dev/null
+	# if [[ $? -ne 4 ]]; then
+	#	 echo "I’m sorry, `getopt --test` failed in this environment."
+	#	 exit 1
+	# fi
 
+	OPTIONS=n:s:
+	LONGOPTIONS=network:,zabbix-server:,zabbix-hostname:,seed:,database-host:,core-config:
 
-	  case "${ARG}" in
-	  --testnet)
-	    NETWORK="testnet"
-	    ;;
-	  --pubnet)
-	    NETWORK="pubnet"
-	    ;;
-	  --standalone)
-	    NETWORK="standalone"
-	    ;;
-	  *)
-	    echo "Unknown container arg $ARG" >&2
-	    exit 1
-	  esac
+	PARSED=$(getopt --options=$OPTIONS --longoptions=$LONGOPTIONS --name "$0" -- "$@")
+	if [[ $? -ne 0 ]]; then
+		exit 2
+	fi
+	# read getopt’s output this way to handle the quoting right:
+	eval set -- "$PARSED"
+
+	while true; do
+		case "$1" in
+			--database-host)
+				DB_HOST="$2"
+				shift 2
+				;;
+			--core-config)
+				CORE_CONFIG="$2"
+				shift 2
+				;;
+			-n|--network)
+				NETWORK="$2"
+				if [[ $NETWORK != 'testnet' ]] &&
+						[[ $NETWORK != 'pubnet' ]] &&
+						[[ $NETWORK != 'standalone' ]]; then
+					echo "Expected network to be one of 'testnet', 'pubnet' or 'standalone' but got $NETWORK" >&2
+					exit 1
+				fi
+				shift 2
+				;;
+			--zabbix-server)
+				ZABBIX_SERVER="$2"
+				shift 2
+				;;
+			--zabbix-hostname)
+				ZABBIX_HOSTNAME="$2"
+				shift 2
+				;;
+			-s|--seed)
+				NODE_SEED="$2"
+				shift 2
+				;;
+			--)
+				shift
+				break
+				;;
+			*)
+				echo "Programming error"
+				exit 3
+				;;
+		esac
 	done
 
 	# TODO: ask for what network to use
 	if [ -z "$NETWORK" ]; then
 		NETWORK="testnet"
 	fi
+	if [ -z "$DB_HOST" ]; then
+		DB_HOST="localhost"
+	fi
+	if [ -z "$ZABBIX_SERVER" ]; then
+		ZABBIX_SERVER="127.0.0.1"
+	fi
+	if [ -z "$CORE_CONFIG" ]; then
+		CORE_CONFIG="stellar-core.cfg"
+	fi
+	if [ ! -s "/opt/stellar-default/$NETWORK/core/etc/$CORE_CONFIG" ]; then
+		echo "Did not find a config file at $NETWORK/core/etc/$CORE_CONFIG" >&2
+		exit 2
+	fi
+	if [ -n "$NODE_SEED" ]; then
+		NODE_IS_VALIDATOR=true
+	else
+		NODE_IS_VALIDATOR=false
+	fi
 
 	case "$NETWORK" in
 	testnet)
-    export NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
-    ;;
+	export NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
+	;;
 	pubnet)
-    export NETWORK_PASSPHRASE="Public Global Stellar Network ; September 2015"
-    ;;
+	export NETWORK_PASSPHRASE="Public Global Stellar Network ; September 2015"
+	;;
 	standalone)
-    NETWORK_PASSPHRASE="Standalone Network ; February 2017"
-    ;;
+	NETWORK_PASSPHRASE="Standalone Network ; February 2017"
+	;;
 	*)
 		echo "Unknown network: '$NETWORK'" >&2
 		exit 1
@@ -130,6 +188,12 @@ function set_pg_password() {
 function copy_defaults() {
 	local CP="rsync -a"
 
+	if [ -d $ZABBIXHOME/etc ]; then
+		echo "zabbix: config directory exists, skipping copy"
+	else
+		$CP /opt/stellar-default/common/zabbix/ $ZABBIXHOME
+	fi
+
 	if [ -d $PGHOME/etc ]; then
 		echo "postgres: config directory exists, skipping copy"
 	else
@@ -165,6 +229,29 @@ function copy_pgpass() {
 	$CP /opt/stellar/postgresql/.pgpass /home/stellar
 	chmod 0600 /home/stellar/.pgpass
 	chown stellar:stellar /home/stellar/.pgpass
+}
+
+function init_zabbix_agent() {
+	if [ -f $ZABBIXHOME/.quickstart-initialized ]; then
+		echo "zabbix: already initialized"
+		return 0
+	fi
+	pushd $ZABBIXHOME
+
+	run_silent "chown-zabbix" chown zabbix:zabbix .
+	
+	if [ -z $ZABBIX_HOSTNAME ]; then
+		ZABBIX_HOSTNAME_LINE="# Hostname=Zabbix server"
+	else
+		ZABBIX_HOSTNAME_LINE="Hostname=$ZABBIX_HOSTNAME"
+	fi
+	sed -ri \
+		-e "s/__ZABBIX_SERVER__/$ZABBIX_SERVER/g" \
+		-e "s/__ZABBIX_HOSTNAME_LINE__/$ZABBIX_HOSTNAME_LINE/g" \
+		etc/zabbix_agentd.conf
+
+	touch .quickstart-initialized
+	popd
 }
 
 function init_db() {
@@ -211,14 +298,25 @@ function init_stellar_core() {
 	pushd $COREHOME
 
 	run_silent "chown-core" chown stellar:stellar .
-	run_silent "finalize-core-config" sed -ri "s/__PGPASS__/$PGPASS/g" etc/stellar-core.cfg
+	if [ -z $ZABBIX_HOSTNAME ]; then
+		NODE_SEED_LINE='# SEED=""'
+	else
+		NODE_SEED_LINE="SEED=\"$NODE_SEED self\""
+	fi
+	sed -ri \
+		-e "s/__PGPASS__/$PGPASS/g" \
+		-e "s/__NODE_SEED_LINE__/$NODE_SEED_LINE/g" \
+		-e "s/__DB_HOST__/$DB_HOST/g" \
+		-e "s/__NODE_IS_VALIDATOR__/$NODE_IS_VALIDATOR/g" \
+		-e "s/__NETWORK__/$NETWORK_PASSPHRASE/g" \
+		etc/$CORE_CONFIG
 
 	start_postgres
 
-	run_silent "init-core-db" sudo -u stellar stellar-core --newdb --conf etc/stellar-core.cfg
+	run_silent "init-core-db" sudo -u stellar stellar-core --newdb --conf etc/$CORE_CONFIG
 
 	if [ "$NETWORK" == "standalone" ]; then
-		run_silent "init-core-scp" sudo -u stellar stellar-core --forcescp --conf etc/stellar-core.cfg
+		run_silent "init-core-scp" sudo -u stellar stellar-core --forcescp --conf etc/$CORE_CONFIG
 	fi
 
 	touch .quickstart-initialized
@@ -236,6 +334,7 @@ function init_horizon() {
 	
 	sed -ri \
 		-e "s/__PGPASS__/$PGPASS/g" \
+		-e "s/__DB_HOST__/$DB_HOST/g" \
 		-e "s/__NETWORK__/$NETWORK_PASSPHRASE/g" \
 		etc/horizon.env
 
@@ -267,7 +366,7 @@ function run_silent() {
 	$COMMAND $ARGS &> $OUTFILE
 
 	if [ $? -eq 0 ]; then
-    echo "ok"
+	echo "ok"
 	else
 	  echo "failed!"
 		echo ""
@@ -308,11 +407,11 @@ function stop_postgres() {
 }
 
 pushd () {
-    command pushd "$@" > /dev/null
+	command pushd "$@" > /dev/null
 }
 
 popd () {
-    command popd "$@" > /dev/null
+	command popd "$@" > /dev/null
 }
 
 main $@
