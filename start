@@ -47,7 +47,7 @@ function process_args() {
 	# fi
 
 	OPTIONS=n:s:
-	LONGOPTIONS=network:,zabbix-server:,zabbix-hostname:,seed:,database-host:,core-config:
+	LONGOPTIONS=network:,zabbix-server:,zabbix-hostname:,seed:,database-host:,core-config:,database-pass:
 
 	PARSED=$(getopt --options=$OPTIONS --longoptions=$LONGOPTIONS --name "$0" -- "$@")
 	if [[ $? -ne 0 ]]; then
@@ -60,6 +60,10 @@ function process_args() {
 		case "$1" in
 			--database-host)
 				DB_HOST="$2"
+				shift 2
+				;;
+            --database-pass)
+                POSTGRES_PASSWORD="$2"
 				shift 2
 				;;
 			--core-config)
@@ -279,12 +283,14 @@ function init_db() {
 	chown postgres:postgres $PGDATA
 	chmod 0700 $PGDATA
 
-	run_silent "init-postgres" sudo -u postgres $PGBIN/initdb -D $PGDATA
+    if [ $DB_HOST = 'localhost' ]; then
+        run_silent "init-postgres" sudo -u postgres $PGBIN/initdb -D $PGDATA
+    fi
 
 	start_postgres
-	run_silent "create-horizon-db" sudo -u postgres createdb horizon
-	run_silent "create-core-db" sudo -u postgres createdb core
-	run_silent "stellar-postgres-user" sudo -u postgres psql <<-SQL
+	run_silent "create-horizon-db" sudo -u postgres createdb -h $DB_HOST horizon
+	run_silent "create-core-db" sudo -u postgres createdb -h $DB_HOST core
+	run_silent "stellar-postgres-user" sudo -u postgres psql -h $DB_HOST <<-SQL
 		CREATE USER $PGUSER WITH PASSWORD '$PGPASS';
 		GRANT ALL PRIVILEGES ON DATABASE horizon to $PGUSER;
 		GRANT ALL PRIVILEGES ON DATABASE core to $PGUSER;
@@ -386,10 +392,14 @@ function start_postgres() {
 		return 0
 	fi
 
-	sudo -u postgres $PGBIN/postgres -D $PGDATA -c config_file=$PGHOME/etc/postgresql.conf &> /dev/null &
-	CURRENT_POSTGRES_PID=$!
+    if [ $DB_HOST = 'localhost' ]; then
+        sudo -u postgres $PGBIN/postgres -D $PGDATA -c config_file=$PGHOME/etc/postgresql.conf &> /dev/null &
+        CURRENT_POSTGRES_PID=$!
+    else
+        echo "assuming postgres server is started on remote host $DB_HOST"
+    fi
 
-	while ! sudo -u postgres psql -c 'select 1' &> /dev/null ; do
+	while ! sudo -u postgres psql -h $DB_HOST -c 'select 1' &> /dev/null ; do
 	  echo "Waiting for postgres to be available..."
 	  sleep 1
 	done
@@ -398,6 +408,10 @@ function start_postgres() {
 }
 
 function stop_postgres() {
+    if [ $DB_HOST != 'localhost' ]; then
+        echo "cannot stop postgres on remote host $DB_HOST"
+		return 0
+	fi
 	if [ -z "$CURRENT_POSTGRES_PID" ]; then
 		return 0
 	fi
