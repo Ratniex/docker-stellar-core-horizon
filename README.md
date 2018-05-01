@@ -188,13 +188,17 @@ $ docker run --rm -it \
 *Setup a new persistent node using the host directory `/str`:*
 ```
 $ docker run -it --rm \
-    -v "/str:/opt/stellar" \
-    --name stellar \
-    stellar/quickstart \
-    --network pubnet \
-    --seed SDL5M35V4KYWA473NNO2JPY4PMKIE6H33QWEZGLOZBNYQITACALUR3B7 \
-    --zabbix-server 123.45.67.89 \
-    --zabbix-hostname monitoring.example.com
+    -p "8000:8000" \
+    -p "11626:11626" \
+    -p "11625:11625" \
+    --name node1 \
+    factury-core-horizon \
+    --network factury \
+    --core-config factury1.cfg \
+    --seed <input> \
+    --database-host node-test-1.c1a8id0ebsnx.us-east-1.rds.amazonaws.com \
+    --database-pass <input> \
+    --zabbix-server 34.207.178.141
 ```
 
 *Start a background persistent container for an already initialized host directory:*

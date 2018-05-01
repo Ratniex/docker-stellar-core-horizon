@@ -15,6 +15,7 @@ export PGPORT=5432
 
 QUICKSTART_INITIALIZED=false
 CURRENT_POSTGRES_PID=""
+export PGPASSFILE="$PGHOME/.pgpass"
 
 function main() {
 	echo ""
@@ -278,6 +279,16 @@ function init_db() {
 	set_pg_password
 
 	run_silent "finalize-pgpass" sed -ri "s/__PGPASS__/$PGPASS/g" /opt/stellar/postgresql/.pgpass
+    chmod 0600 /opt/stellar/postgresql/.pgpass
+    chown postgres:postgres /opt/stellar/postgresql/.pgpass
+
+    if [[ $DB_HOST != 'localhost' ]]; then
+        DB_IS_INITIALIZED=`psql -U postgres -h $DB_HOST -c '\list horizon' | grep horizon | cat`
+        if [[ -n "$DB_IS_INITIALIZED" ]]; then
+            echo "postgres: already initialized on remote host"
+            return 0
+        fi
+    fi
 
 	mkdir -p $PGDATA
 	chown postgres:postgres $PGDATA
@@ -288,9 +299,9 @@ function init_db() {
     fi
 
 	start_postgres
-	run_silent "create-horizon-db" sudo -u postgres createdb -h $DB_HOST horizon
-	run_silent "create-core-db" sudo -u postgres createdb -h $DB_HOST core
-	run_silent "stellar-postgres-user" sudo -u postgres psql -h $DB_HOST <<-SQL
+	run_silent "create-horizon-db" createdb -U postgres -h $DB_HOST horizon
+	run_silent "create-core-db" createdb -U postgres -h $DB_HOST core
+	run_silent "stellar-postgres-user" psql -U postgres -h $DB_HOST <<-SQL
 		CREATE USER $PGUSER WITH PASSWORD '$PGPASS';
 		GRANT ALL PRIVILEGES ON DATABASE horizon to $PGUSER;
 		GRANT ALL PRIVILEGES ON DATABASE core to $PGUSER;
@@ -323,7 +334,15 @@ function init_stellar_core() {
 
 	start_postgres
 
-	run_silent "init-core-db" sudo -u stellar stellar-core --newdb --conf etc/$CORE_CONFIG
+    if [[ $DB_HOST != 'localhost' ]]; then
+        CORE_IS_INITIALIZED=`psql -U stellar -h $DB_HOST -c '\dt' core | grep accounts | cat`
+    fi
+    if [[ -n "$CORE_IS_INITIALIZED" ]]; then
+        echo "db for stellar core initialized on remote host"
+        return 0
+    else
+        run_silent "init-core-db" sudo -u stellar stellar-core --newdb --conf etc/$CORE_CONFIG
+    fi
 
 	if [ "$NETWORK" == "standalone" ]; then
 		run_silent "init-core-scp" sudo -u stellar stellar-core --forcescp --conf etc/$CORE_CONFIG
@@ -349,7 +368,15 @@ function init_horizon() {
 		etc/horizon.env
 
 	start_postgres
-	run_silent "init-horizon-db" sudo -u stellar ./bin/horizon db init
+    if [[ $DB_HOST != 'localhost' ]]; then
+        HORIZON_IS_INITIALIZED=`psql -U stellar -h $DB_HOST -c '\dt' horizon | grep history_accounts | cat`
+    fi
+    if [[ -n "$HORIZON_IS_INITIALIZED" ]]; then
+        echo "db for stellar horizon initialized on remote host"
+        return 0
+    else
+        run_silent "init-horizon-db" sudo -u stellar ./bin/horizon db init
+    fi
 
 	touch .quickstart-initialized
 	popd
@@ -395,14 +422,14 @@ function start_postgres() {
     if [ $DB_HOST = 'localhost' ]; then
         sudo -u postgres $PGBIN/postgres -D $PGDATA -c config_file=$PGHOME/etc/postgresql.conf &> /dev/null &
         CURRENT_POSTGRES_PID=$!
+
+        while ! psql -U postgres -h $DB_HOST -c 'select 1' &> /dev/null ; do
+          echo "Waiting for postgres to be available..."
+          sleep 1
+        done
     else
         echo "assuming postgres server is started on remote host $DB_HOST"
     fi
-
-	while ! sudo -u postgres psql -h $DB_HOST -c 'select 1' &> /dev/null ; do
-	  echo "Waiting for postgres to be available..."
-	  sleep 1
-	done
 
 	echo "postgres: up"
 }
