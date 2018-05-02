@@ -191,6 +191,7 @@ $ docker run -it --rm \
     -p "8000:8000" \
     -p "11626:11626" \
     -p "11625:11625" \
+    -p "10050:10050" \
     --name node1 \
     factury-core-horizon \
     --network factury \

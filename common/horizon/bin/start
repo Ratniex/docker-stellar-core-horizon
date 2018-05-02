@@ -12,6 +12,12 @@ while ! stellar-core --conf /opt/stellar/core/etc/stellar-core.cfg -c info &> /d
   sleep 1
 done
 
+# while ! psql -U stellar -c 'select count() from scpquorums' core &> /dev/null ; do
+# do
+#   echo 'Waiting for stellar-cores to reach 2nd consensus...'
+#   sleep 1
+# done
+
 echo "starting horizon..."
 set -e
 exec $DIR/horizon
