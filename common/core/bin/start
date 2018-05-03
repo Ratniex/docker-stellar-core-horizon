@@ -1,6 +1,6 @@
 #!/bin/bash
 
-while ! psql -U stellar -c 'select 1' core &> /dev/null ; do
+while ! psql -U stellar -h __DB_HOST__ -c 'select 1' core &> /dev/null ; do
   echo "Waiting for postgres to be available..."
   sleep 1
 done
@@ -10,4 +10,4 @@ done
 # stellar-core.cfg should be replaced by $CORE_CONFIG
 echo "starting core..."
 set -e
-exec /usr/local/bin/stellar-core --conf "/opt/stellar/core/etc/stellar-core.cfg"
+exec /usr/local/bin/stellar-core --conf "/opt/stellar/core/etc/__CORE_CONFIG__"

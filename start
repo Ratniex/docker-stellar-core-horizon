@@ -331,6 +331,10 @@ function init_stellar_core() {
 		-e "s/__NODE_IS_VALIDATOR__/$NODE_IS_VALIDATOR/g" \
 		-e "s/__NETWORK__/$NETWORK_PASSPHRASE/g" \
 		etc/$CORE_CONFIG
+	sed -ri \
+		-e "s/__DB_HOST__/$DB_HOST/g" \
+		-e "s/__CORE_CONFIG__/$CORE_CONFIG/g" \
+		bin/start
 
 	start_postgres
 
@@ -366,6 +370,9 @@ function init_horizon() {
 		-e "s/__DB_HOST__/$DB_HOST/g" \
 		-e "s/__NETWORK__/$NETWORK_PASSPHRASE/g" \
 		etc/horizon.env
+	sed -ri \
+		-e "s/__DB_HOST__/$DB_HOST/g" \
+		bin/start
 
 	start_postgres
     if [[ $DB_HOST != 'localhost' ]]; then
@@ -424,7 +431,7 @@ function start_postgres() {
         CURRENT_POSTGRES_PID=$!
 
         while ! psql -U postgres -h $DB_HOST -c 'select 1' &> /dev/null ; do
-          echo "Waiting for postgres to be available..."
+          echo "Available waiting for postgres to be..."
           sleep 1
         done
     else
