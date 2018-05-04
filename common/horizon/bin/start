@@ -2,21 +2,17 @@
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-while ! psql -U stellar -h __DB_HOST__ -c 'select 1' horizon &> /dev/null ; do
-  echo "Waiting for postgres to be available..."
-  sleep 1
-done
+# somehow supervisord is unable to run this part of the script because
+# authentification for psql fails
+#while ! psql -U stellar -h __DB_HOST__ -c 'select 1' horizon &> /dev/null ; do
+#  echo "Waiting for postgres to be available..."
+#  sleep 1
+#done
 
 while ! stellar-core --conf /opt/stellar/core/etc/stellar-core.cfg -c info &> /dev/null ; do
   echo "Waiting for stellar-core to be available..."
   sleep 1
 done
-
-# while ! psql -U stellar -h __DB_HOST__ -c 'select count() from scpquorums' core &> /dev/null ; do
-# do
-#   echo 'Waiting for stellar-cores to reach 2nd consensus...'
-#   sleep 1
-# done
 
 echo "starting horizon..."
 set -e

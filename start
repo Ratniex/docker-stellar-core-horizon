@@ -319,10 +319,10 @@ function init_stellar_core() {
 	pushd $COREHOME
 
 	run_silent "chown-core" chown stellar:stellar .
-	if [ -z $ZABBIX_HOSTNAME ]; then
-		NODE_SEED_LINE='# SEED=""'
+	if [ -z $NODE_SEED ]; then
+		NODE_SEED_LINE='# NODE_SEED=""'
 	else
-		NODE_SEED_LINE="SEED=\"$NODE_SEED self\""
+		NODE_SEED_LINE="NODE_SEED=\"$NODE_SEED self\""
 	fi
 	sed -ri \
 		-e "s/__PGPASS__/$PGPASS/g" \

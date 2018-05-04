@@ -1,9 +1,11 @@
 #!/bin/bash
 
-while ! psql -U stellar -h __DB_HOST__ -c 'select 1' core &> /dev/null ; do
-  echo "Waiting for postgres to be available..."
-  sleep 1
-done
+# somehow supervisord is unable to run this part of the script because
+# authentification for psql fails
+#while ! psql -U stellar -h __DB_HOST__ -c 'select 1' core &> /dev/null ; do
+#  echo "Waiting for postgres to be available..."
+#  sleep 1
+#done
 
 # there is a serious problem here
 # where does this echo go to and also 
