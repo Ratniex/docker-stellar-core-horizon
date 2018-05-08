@@ -48,7 +48,7 @@ function process_args() {
 	# fi
 
 	OPTIONS=n:s:
-	LONGOPTIONS=network:,zabbix-server:,zabbix-hostname:,seed:,database-host:,core-config:,database-pass:
+	LONGOPTIONS=network:,zabbix-server:,zabbix-hostname:,seed:,database-host:,core-config:,database-pass:,forcescp
 
 	PARSED=$(getopt --options=$OPTIONS --longoptions=$LONGOPTIONS --name "$0" -- "$@")
 	if [[ $? -ne 0 ]]; then
@@ -93,6 +93,10 @@ function process_args() {
 			-s|--seed)
 				NODE_SEED="$2"
 				shift 2
+				;;
+			--forcescp)
+				FORCE_SCP="yes"
+				shift 1
 				;;
 			--)
 				shift
@@ -139,7 +143,8 @@ function process_args() {
 	export NETWORK_PASSPHRASE="FIC Network ; 2018"
 	;;
 	standalone)
-	NETWORK_PASSPHRASE="Standalone Network ; February 2017"
+    NETWORK_PASSPHRASE="Standalone Network ; February 2017"
+    FORCE_SCP='yes'
 	;;
 	*)
 		echo "Unknown network: '$NETWORK'" >&2
@@ -348,7 +353,7 @@ function init_stellar_core() {
         run_silent "init-core-db" sudo -u stellar stellar-core --newdb --conf etc/$CORE_CONFIG
     fi
 
-	if [ "$NETWORK" == "standalone" ]; then
+	if [ "$FORCE_SCP" == "yes" ]; then
 		run_silent "init-core-scp" sudo -u stellar stellar-core --forcescp --conf etc/$CORE_CONFIG
 	fi
 
