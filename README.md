@@ -199,6 +199,9 @@ $ docker run -it --rm \
     --seed <input> \
     --database-host node-test-1.c1a8id0ebsnx.us-east-1.rds.amazonaws.com \
     --database-pass <input> \
+    --aws-access-key-id <input> \
+    --aws-secret-access-key <input> \
+    --aws-region "us-east-1" \
     --zabbix-server 34.207.178.141
 ```
 

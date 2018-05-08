@@ -28,6 +28,7 @@ function main() {
 	echo "network: $NETWORK ($NETWORK_PASSPHRASE)"
 
 	copy_defaults
+    copy_aws
 	init_zabbix_agent
 	init_db
 	init_stellar_core
@@ -49,6 +50,7 @@ function process_args() {
 
 	OPTIONS=n:s:
 	LONGOPTIONS=network:,zabbix-server:,zabbix-hostname:,seed:,database-host:,core-config:,database-pass:,forcescp
+    LONGOPTIONS=$LONGOPTIONS,aws-access-key-id:,aws-secret-access-key:,aws-region:
 
 	PARSED=$(getopt --options=$OPTIONS --longoptions=$LONGOPTIONS --name "$0" -- "$@")
 	if [[ $? -ne 0 ]]; then
@@ -97,6 +99,18 @@ function process_args() {
 			--forcescp)
 				FORCE_SCP="yes"
 				shift 1
+				;;
+			--aws-access-key-id)
+				AWS_ACCESS_KEY_ID="$2"
+				shift 2
+				;;
+			--aws-secret-access-key)
+				AWS_SECRET_ACCESS_KEY="$2"
+				shift 2
+				;;
+			--aws-region)
+				AWS_REGION="$2"
+				shift 2
 				;;
 			--)
 				shift
@@ -243,6 +257,19 @@ function copy_pgpass() {
 	$CP /opt/stellar/postgresql/.pgpass /home/stellar
 	chmod 0600 /home/stellar/.pgpass
 	chown stellar:stellar /home/stellar/.pgpass
+}
+
+function copy_aws() {
+    mkdir ~/.aws
+    echo "
+    [default]
+    aws_access_key_id = $AWS_ACCESS_KEY_ID
+    aws_secret_access_key = $AWS_SECRET_ACCESS_KEY
+    " > ~/.aws/credentials
+    echo "
+    [default]
+    region = $AWS_REGION
+    " > ~/.aws/config
 }
 
 function init_zabbix_agent() {
