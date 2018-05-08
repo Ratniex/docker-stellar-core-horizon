@@ -16,12 +16,12 @@ rm -rf horizon.tar.gz /horizon-v${HORIZON_VERSION}-linux-amd64
 echo "\nDone installing stellar-core and horizon...\n"
 
 # zabbix agent
-#wget http://repo.zabbix.com/zabbix/3.4/ubuntu/pool/main/z/zabbix-release/zabbix-release_3.4-1+xenial_all.deb
-#dpkg -i zabbix-release_3.4-1+xenial_all.deb
-#apt-get update
-wget http://repo.zabbix.com/zabbix/3.4/debian/pool/main/z/zabbix-release/zabbix-release_3.4-1+stretch_all.deb
-dpkg -i zabbix-release_3.4-1+stretch_all.deb
+wget http://repo.zabbix.com/zabbix/3.4/ubuntu/pool/main/z/zabbix-release/zabbix-release_3.4-1+xenial_all.deb
+dpkg -i zabbix-release_3.4-1+xenial_all.deb
 apt-get update
+# wget http://repo.zabbix.com/zabbix/3.4/debian/pool/main/z/zabbix-release/zabbix-release_3.4-1+stretch_all.deb
+# dpkg -i zabbix-release_3.4-1+stretch_all.deb
+# apt-get update
 apt-get install zabbix-agent
 
 echo "\nDone installing zabbix-agent...\n"
