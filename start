@@ -410,6 +410,7 @@ function init_horizon() {
 		etc/horizon.env
 	sed -ri \
 		-e "s/__DB_HOST__/$DB_HOST/g" \
+		-e "s/__CORE_CONFIG__/$CORE_CONFIG/g" \
 		bin/start
 
 	start_postgres
