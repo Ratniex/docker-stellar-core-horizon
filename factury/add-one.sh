@@ -6,21 +6,16 @@ echo 'enter node number'
 read number
 echo 'enter node db_pass'
 read db_pass
-echo 'enter node aws_access_key_id'
-read aws_access_key_id
-echo 'enter node aws_secret_access_key'
-read aws_secret_access_key
 echo 'enter node db_host'
 read db_host
 echo 'enter node seed'
 read seed
+echo 'enter node aws_access_key_id'
+read aws_access_key_id
+echo 'enter node aws_secret_access_key'
+read aws_secret_access_key
 
 echo "imap jk <esc>" > ~/.vimrc
-# edit core config file with right ip addresses
-echo "edit core config file with right ip addresses in KNOWN_PEERS"
-echo "press enter"
-read
-vim factury/core/etc/factury$number.cfg
 
 # write banner
 case "$number" in
@@ -130,6 +125,12 @@ git clone https://github.com/Ratniex/docker-stellar-core-horizon
 cd ~/docker-stellar-core-horizon/
 git checkout factury
 
+# edit core config file with right ip addresses
+echo "edit core config file with right ip addresses in KNOWN_PEERS"
+echo "press enter"
+read
+vim factury/core/etc/factury$number.cfg
+
 # build docker
 cd ~/docker-stellar-core-horizon/
 sudo docker build -t factury-core-horizon .
@@ -138,7 +139,7 @@ sudo docker build -t factury-core-horizon .
 # make sure to run it with a space at the begining so that this command is not saved in bash_history
 echo "should this instance be started with --forcescp? [y/N]"
 read answer
-if [ $answer = 'y' ]; then
+if [ $answer == 'y' ]; then
  sudo docker run -d \
     -p "8000:8000" \
     -p "11625:11625" \
